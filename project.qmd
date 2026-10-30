@@ -11,113 +11,10 @@ execute:
 ```{r}
 library(tidyverse)
 library(readxl)
-
-# Load and tidy Dataset 1: Pre-competition weight cut & fight-day rebound (32 athletes)
-weight_cut <- read_excel("data/weight_cut_mma.xlsx", sheet = 1) |>
-  slice(c(38, 39, 40, 41, 45)) |>
-  mutate(metric = c("start_weight_kg", "weighin_weight_kg", "fight_weight_kg", "height_m", "result_code")) |>
-  select(-atletas) |>
-  pivot_longer(-metric, names_to = "athlete_id", values_to = "value") |>
-  pivot_wider(names_from = metric, values_from = value) |>
-  drop_na(fight_weight_kg) |>
-  mutate(
-    pct_weight_cut = (start_weight_kg - weighin_weight_kg) / start_weight_kg * 100,
-    pct_rebound = (fight_weight_kg - weighin_weight_kg) / weighin_weight_kg * 100,
-    outcome = case_when(
-      result_code == 1 ~ "Win",
-      result_code == 2 ~ "Loss",
-      result_code == 3 ~ "Draw / No Contest"
-    )
-  )
-
-# Load and tidy Dataset 2: Wrestler longitudinal weight, body fat %, muscle mass, grip strength & HRV (20 wrestlers x 5 phases)
-wrestler_anthro_raw <- read_csv("data/wrestler_anthro.csv", show_col_types = FALSE) |>
-  filter(!is.na(Boy))
-
-wrestler_hrv_raw <- read_csv("data/wrestler_hrv.csv", show_col_types = FALSE) |>
-  rename(
-    HRV1 = DetrHRV,
-    HRV2 = TrainingHRV,
-    HRV3 = HighTrainingHRV,
-    HRV4 = FormHRV,
-    HRV5 = `MüsabakaHRV`
-  )
-
-wrestler_long <- bind_cols(wrestler_anthro_raw, select(wrestler_hrv_raw, HRV1:HRV5)) |>
-  mutate(wrestler_id = row_number()) |>
-  select(wrestler_id, matches("^(VA|Yag|kaskg|EKdom|HRV)[1-5]$")) |>
-  pivot_longer(
-    -wrestler_id,
-    names_to = c("metric", "phase_num"),
-    names_pattern = "([A-Za-z]+)([1-5])",
-    values_to = "value"
-  ) |>
-  drop_na(value) |>
-  mutate(
-    phase = factor(
-      phase_num,
-      levels = c("1", "2", "3", "4", "5"),
-      labels = c("Detraining", "Training", "High-Intensity", "Tapering", "Competition")
-    ),
-    metric_label = recode(
-      metric,
-      "Yag" = "Body Fat (%)",
-      "kaskg" = "Muscle Mass (kg)",
-      "EKdom" = "Grip Strength (kg)",
-      "HRV" = "Heart Rate Variability (HRV)",
-      "VA" = "Body Weight (kg)"
-    )
-  )
-
-# Load and tidy Dataset 3: Elite combat sports body composition (68 athletes)
-combat_body_comp <- read_excel("data/combat_body_comp.xlsx", sheet = 1, .name_repair = "minimal") |>
-  select(1:16) |>
-  set_names(c(
-    "sport_code", "age", "weight_kg", "height_cm",
-    "triceps_mm", "subscapular_mm", "biceps_mm", "iliac_crest_mm",
-    "supraspinale_mm", "abdominal_mm", "mid_thigh_mm", "calf_mm",
-    "arm_relaxed_cm", "arm_flexed_cm", "waist_cm", "hip_cm"
-  ))
 ```
 
 ```{r}
-# Plot pre-competition weight cut (%) vs. fight-day rebound (%) by match outcome
-ggplot(weight_cut, aes(x = pct_weight_cut, y = pct_rebound, color = outcome)) +
-  geom_smooth(aes(group = 1), method = "lm", se = FALSE, color = "gray60", linetype = "dashed") +
-  geom_point(size = 3, alpha = 0.85) +
-  labs(
-    title = "Pre-Competition Weight Cut vs. Fight-Day Rehydration Rebound",
-    subtitle = "Combat athletes almost completely rebound the percentage of body mass lost before weigh-ins",
-    x = "Weight Cut Before Weigh-In (% of Starting Body Mass)",
-    y = "Weight Rebound by Fight Day (% of Weigh-In Mass)",
-    color = "Match Outcome",
-    caption = "Source: Prospective Interventional Study of Pre-Competition Weight Management (Figshare)"
-  ) +
-  theme_minimal()
-```
-
-```{r}
-# Plot longitudinal physiological and body composition changes across 5 wrestling phases
-wrestler_long |>
-  filter(metric != "VA") |>
-  ggplot(aes(x = phase, y = value, group = wrestler_id)) +
-  geom_line(alpha = 0.25, color = "steelblue") +
-  stat_summary(aes(group = 1), fun = mean, geom = "line", linewidth = 1.2, color = "firebrick") +
-  stat_summary(aes(group = 1), fun = mean, geom = "point", size = 2.5, color = "firebrick") +
-  facet_wrap(~ metric_label, scales = "free_y") +
-  labs(
-    title = "Longitudinal Physiological Tracking of Competitive Wrestlers Across 5 Phases",
-    subtitle = "Faint blue lines show 20 individual wrestlers; bold red line shows the team mean from off-season to competition",
-    x = "Training & Competition Phase",
-    y = NULL,
-    caption = "Source: Longitudinal Wrestler HRV & Anthropometric Tracking Study (PLOS ONE / Figshare)"
-  ) +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 25, hjust = 1))
-```
-
-```{r}
-# Load and plot Dataset 4: High-level combat athletes Rapid Weight Loss (667 athletes)
+# Load and plot Dataset 1: High-level combat athletes Rapid Weight Loss (667 athletes)
 rwl_combat <- read_excel("data/rwl_combat_667.xlsx", sheet = 1) |>
   filter(weight_cutting_usuallykg > 0) |>
   mutate(sex = str_to_title(sex))
@@ -137,7 +34,7 @@ ggplot(rwl_combat, aes(x = weight_cutting_usuallykg, y = weight_regain_nextweekc
 ```
 
 ```{r}
-# Load and plot Dataset 5: Olympic Wrestling Biometrics (5,246 wrestlers)
+# Load and plot Dataset 2: Olympic Wrestling Biometrics (5,246 wrestlers)
 olympic_wrestlers <- read_csv("data/olympic_wrestlers.csv", show_col_types = FALSE) |>
   mutate(
     division = case_when(
@@ -162,6 +59,3 @@ ggplot(olympic_wrestlers, aes(x = Height, y = Weight, color = medal_status)) +
   ) +
   theme_minimal()
 ```
-
-
-
